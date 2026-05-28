@@ -17,6 +17,10 @@
       <h2>Atividades Extracurriculares</h2>
       <div id="user-controls">
         <div id="user-status">
+          <button id="manage-announcements-button" class="icon-button hidden">
+            <span class="user-icon">📢</span>
+            <span>Gerenciar anúncios</span>
+          </button>
           <button id="login-button" class="icon-button">
             <span class="user-icon">👤</span>
             <span>Entrar</span>
@@ -27,6 +31,7 @@
           </div>
         </div>
       </div>
+      <div id="announcements-container" class="announcement-banner hidden" aria-live="polite"></div>
     </header>
 
     <main>
@@ -134,9 +139,47 @@
       </div>
     </div>
 
+    <!-- Announcement Management Modal -->
+    <div id="announcement-modal" class="modal hidden">
+      <div class="modal-content announcement-modal-content">
+        <span class="close-announcement-modal">&times;</span>
+        <h3>Gerenciar Anúncios</h3>
+        <form id="announcement-form">
+          <div class="form-group">
+            <label for="announcement-message">Mensagem:</label>
+            <textarea
+              id="announcement-message"
+              rows="3"
+              maxlength="500"
+              required
+              placeholder="Escreva a mensagem do anúncio"
+            ></textarea>
+          </div>
+          <div class="form-group">
+            <label for="announcement-starts-at">Início (opcional):</label>
+            <input type="datetime-local" id="announcement-starts-at" />
+          </div>
+          <div class="form-group">
+            <label for="announcement-expires-at">Expira em:</label>
+            <input type="datetime-local" id="announcement-expires-at" required />
+          </div>
+          <div class="announcement-form-actions">
+            <button type="button" id="announcement-cancel-edit" class="hidden">
+              Cancelar edição
+            </button>
+            <button type="submit" id="announcement-submit">
+              Salvar anúncio
+            </button>
+          </div>
+        </form>
+        <div id="announcement-message-box" class="hidden message"></div>
+        <div class="announcements-management-list">
+          <h4>Anúncios cadastrados</h4>
+          <ul id="announcement-list"></ul>
+        </div>
+      </div>
+    </div>
+
     <script src="app.js"></script>
   </body>
-  <div class="announcement-banner">
-    📢 As inscrições para atividades estão abertas até o final do mês. Não perca sua vaga!
- </div>
 </html>
