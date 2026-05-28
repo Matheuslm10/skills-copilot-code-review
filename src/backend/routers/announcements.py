@@ -1,11 +1,21 @@
 """
 Announcement endpoints for the High School Management System API
+
+Authentication model:
+- Management endpoints require teacher_username query parameter validated against teacher records.
+- Public listing endpoint returns only currently active announcements.
+
+Active announcement rules:
+- expires_at must be in the future.
+- starts_at is optional. When present, it must be less than or equal to current time.
 """
 
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
+import re
 
 from bson import ObjectId
+from bson.errors import InvalidId
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -27,10 +37,10 @@ class AnnouncementPayload(BaseModel):
     @field_validator("message")
     @classmethod
     def validate_message(cls, message: str) -> str:
-        message = message.strip()
-        if not message:
+        sanitized_message = re.sub(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]", "", message).strip()
+        if not sanitized_message:
             raise ValueError("Message cannot be empty")
-        return message
+        return sanitized_message
 
     @model_validator(mode="after")
     def validate_dates(self) -> "AnnouncementPayload":
@@ -43,6 +53,21 @@ class AnnouncementPayload(BaseModel):
         self.starts_at = starts_at
         self.expires_at = expires_at
         return self
+
+
+class AnnouncementResponse(BaseModel):
+    """Announcement response model."""
+
+    id: str
+    message: str
+    starts_at: Optional[str]
+    expires_at: str
+
+
+class ActionResponse(BaseModel):
+    """Simple action response model."""
+
+    message: str
 
 
 def ensure_utc_datetime(value: Optional[datetime]) -> Optional[datetime]:
@@ -78,9 +103,9 @@ def require_authenticated_teacher(teacher_username: Optional[str]) -> Dict[str, 
     return teacher
 
 
-@router.get("", response_model=List[Dict[str, Any]])
-@router.get("/", response_model=List[Dict[str, Any]])
-def get_active_announcements() -> List[Dict[str, Any]]:
+@router.get("", response_model=List[AnnouncementResponse])
+@router.get("/", response_model=List[AnnouncementResponse])
+def get_active_announcements() -> List[AnnouncementResponse]:
     """Get announcements that are currently active."""
     now = datetime.now(timezone.utc)
     query = {
@@ -95,17 +120,17 @@ def get_active_announcements() -> List[Dict[str, Any]]:
     return [serialize_announcement(announcement) for announcement in announcements]
 
 
-@router.get("/all", response_model=List[Dict[str, Any]])
-def get_all_announcements(teacher_username: Optional[str] = Query(None)) -> List[Dict[str, Any]]:
+@router.get("/all", response_model=List[AnnouncementResponse])
+def get_all_announcements(teacher_username: Optional[str] = Query(None)) -> List[AnnouncementResponse]:
     """Get all announcements for management."""
     require_authenticated_teacher(teacher_username)
     announcements = announcements_collection.find({}).sort("expires_at", 1)
     return [serialize_announcement(announcement) for announcement in announcements]
 
 
-@router.post("", response_model=Dict[str, Any])
-@router.post("/", response_model=Dict[str, Any])
-def create_announcement(payload: AnnouncementPayload, teacher_username: Optional[str] = Query(None)) -> Dict[str, Any]:
+@router.post("", response_model=AnnouncementResponse)
+@router.post("/", response_model=AnnouncementResponse)
+def create_announcement(payload: AnnouncementPayload, teacher_username: Optional[str] = Query(None)) -> AnnouncementResponse:
     """Create an announcement."""
     require_authenticated_teacher(teacher_username)
 
@@ -117,17 +142,17 @@ def create_announcement(payload: AnnouncementPayload, teacher_username: Optional
     return serialize_announcement(created)
 
 
-@router.put("/{announcement_id}", response_model=Dict[str, Any])
+@router.put("/{announcement_id}", response_model=AnnouncementResponse)
 def update_announcement(
     announcement_id: str,
     payload: AnnouncementPayload,
     teacher_username: Optional[str] = Query(None)
-) -> Dict[str, Any]:
+) -> AnnouncementResponse:
     """Update an announcement."""
     require_authenticated_teacher(teacher_username)
     try:
         object_id = ObjectId(announcement_id)
-    except Exception as error:
+    except (InvalidId, TypeError) as error:
         raise HTTPException(status_code=400, detail="Invalid announcement ID") from error
 
     result = announcements_collection.update_one(
@@ -144,16 +169,16 @@ def update_announcement(
     return serialize_announcement(updated)
 
 
-@router.delete("/{announcement_id}", response_model=Dict[str, str])
+@router.delete("/{announcement_id}", response_model=ActionResponse)
 def delete_announcement(
     announcement_id: str,
     teacher_username: Optional[str] = Query(None)
-) -> Dict[str, str]:
+) -> ActionResponse:
     """Delete an announcement."""
     require_authenticated_teacher(teacher_username)
     try:
         object_id = ObjectId(announcement_id)
-    except Exception as error:
+    except (InvalidId, TypeError) as error:
         raise HTTPException(status_code=400, detail="Invalid announcement ID") from error
 
     result = announcements_collection.delete_one({"_id": object_id})

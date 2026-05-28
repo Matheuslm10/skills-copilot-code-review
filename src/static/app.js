@@ -276,6 +276,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const date = new Date(dateString);
+    // datetime-local expects local wall-clock time without timezone, so offset is removed.
     const offsetMs = date.getTimezoneOffset() * 60 * 1000;
     return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
   }
@@ -341,10 +342,11 @@ document.addEventListener("DOMContentLoaded", () => {
   async function fetchActiveAnnouncements() {
     try {
       const response = await fetch("/announcements");
-      const announcements = await response.json();
       if (!response.ok) {
-        throw new Error(announcements.detail || "Falha ao carregar anúncios");
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Falha ao carregar anúncios");
       }
+      const announcements = await response.json();
       renderActiveAnnouncements(announcements);
     } catch (error) {
       announcementsContainer.classList.add("hidden");
